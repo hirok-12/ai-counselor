@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ai-counselor",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-07-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+  // ANTHROPIC_API_KEY は秘密情報なのでここには書かない:
+  //   ローカル: .dev.vars に記載
+  //   本番:     npx wrangler secret put ANTHROPIC_API_KEY
+}

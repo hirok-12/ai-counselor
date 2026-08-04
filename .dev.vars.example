@@ -1,0 +1,2 @@
+# .dev.vars にコピーして API キーを設定してください
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
