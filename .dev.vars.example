@@ -1,2 +1,3 @@
-# .dev.vars にコピーして API キーを設定してください
+# .dev.vars にコピーして値を設定してください
 ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+APP_PASSWORD=your-password
