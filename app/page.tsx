@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ThoughtRecord } from "@/lib/types";
 import { deleteRecord, loadRecords } from "@/lib/storage";
 import { RecordFlow } from "@/components/RecordFlow";
+import { Markdown } from "@/components/Markdown";
 
 type View =
   | { kind: "home" }
@@ -20,9 +21,24 @@ function formatDate(iso: string): string {
 export default function Home() {
   const [view, setView] = useState<View>({ kind: "home" });
   const [records, setRecords] = useState<ThoughtRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setRecords(loadRecords());
+    let alive = true;
+    setLoading(true);
+    loadRecords()
+      .then((r) => {
+        if (alive) setRecords(r);
+      })
+      .catch(() => {
+        /* 認証切れは storage 側でログインへ誘導。その他は空表示のまま */
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [view]);
 
   return (
@@ -59,7 +75,9 @@ export default function Home() {
           </section>
 
           <div className="section-label">これまでの記録</div>
-          {records.length === 0 ? (
+          {loading ? (
+            <p className="empty-note">読み込み中…</p>
+          ) : records.length === 0 ? (
             <p className="empty-note">
               まだ記録がありません。最初の一枚を書いてみましょう。
             </p>
@@ -90,8 +108,8 @@ export default function Home() {
         <RecordDetail
           record={view.record}
           onBack={() => setView({ kind: "home" })}
-          onDelete={() => {
-            deleteRecord(view.record.id);
+          onDelete={async () => {
+            await deleteRecord(view.record.id);
             setView({ kind: "home" });
           }}
         />
@@ -138,6 +156,13 @@ function RecordDetail({
         )}
       </div>
 
+      {record.supportingEvidence && (
+        <div className="detail-section">
+          <div className="detail-q">支持する証拠</div>
+          <div className="detail-a">{record.supportingEvidence}</div>
+        </div>
+      )}
+
       <div className="detail-section">
         <div className="detail-q">違う可能性</div>
         <div className="detail-a">{record.counterEvidence}</div>
@@ -156,10 +181,19 @@ function RecordDetail({
         <div className="detail-a">{record.friendAdvice}</div>
       </div>
 
+      {record.balancedThought && (
+        <div className="detail-section">
+          <div className="detail-q">新しい考え（バランス思考）</div>
+          <div className="detail-a">{record.balancedThought}</div>
+        </div>
+      )}
+
       {record.aiFeedback && (
         <div className="feedback-card">
           <div className="feedback-label">カウンセラーより</div>
-          <div className="feedback-body">{record.aiFeedback}</div>
+          <div className="feedback-body">
+            <Markdown source={record.aiFeedback} />
+          </div>
         </div>
       )}
 

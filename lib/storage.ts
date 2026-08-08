@@ -1,26 +1,33 @@
 import type { ThoughtRecord } from "./types";
 
-const KEY = "ai-counselor:records";
-
-export function loadRecords(): ThoughtRecord[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as ThoughtRecord[];
-    return parsed.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } catch {
-    return [];
+/** 認証切れなら再ログインへ誘導し、それ以外の失敗は例外にする */
+async function ensureOk(res: Response, failMessage: string): Promise<void> {
+  if (res.status === 401) {
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new Error("認証が必要です");
   }
+  if (!res.ok) throw new Error(failMessage);
 }
 
-export function saveRecord(record: ThoughtRecord): void {
-  const records = loadRecords().filter((r) => r.id !== record.id);
-  records.unshift(record);
-  window.localStorage.setItem(KEY, JSON.stringify(records));
+export async function loadRecords(): Promise<ThoughtRecord[]> {
+  const res = await fetch("/api/records", { cache: "no-store" });
+  await ensureOk(res, "記録の読み込みに失敗しました");
+  const records = (await res.json()) as ThoughtRecord[];
+  return records;
 }
 
-export function deleteRecord(id: string): void {
-  const records = loadRecords().filter((r) => r.id !== id);
-  window.localStorage.setItem(KEY, JSON.stringify(records));
+export async function saveRecord(record: ThoughtRecord): Promise<void> {
+  const res = await fetch("/api/records", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(record),
+  });
+  await ensureOk(res, "記録の保存に失敗しました");
+}
+
+export async function deleteRecord(id: string): Promise<void> {
+  const res = await fetch(`/api/records/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  await ensureOk(res, "記録の削除に失敗しました");
 }

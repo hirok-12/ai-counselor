@@ -12,17 +12,21 @@ export type ThoughtRecord = {
   automaticThought: string;
   /** 3. 感情と強度 */
   emotions: Emotion[];
-  /** 4. 反対の証拠・違う可能性 */
+  /** 4. 自動思考を支持する証拠 */
+  supportingEvidence: string;
+  /** 5. 反対の証拠・違う可能性 */
   counterEvidence: string;
-  /** 5a. 自分でコントロールできないこと */
+  /** 6a. 自分でコントロールできないこと */
   uncontrollable: string;
-  /** 5b. 自分でコントロールできること（フォーカスする先） */
+  /** 6b. 自分でコントロールできること（フォーカスする先） */
   controllable: string;
-  /** 6. 親友が同じ相談をしてきたら何と言うか */
+  /** 7. 親友が同じ相談をしてきたら何と言うか */
   friendAdvice: string;
-  /** 7. AI カウンセラーからのフィードバック */
+  /** 8. 自分の言葉でまとめた新しい考え（バランス思考） */
+  balancedThought: string;
+  /** 9. AI カウンセラーからのフィードバック */
   aiFeedback?: string;
-  /** 8. 振り返り後の感情の再評価 */
+  /** 10. 振り返り後の感情の再評価 */
   emotionsAfter?: Emotion[];
 };
 

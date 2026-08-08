@@ -4,8 +4,9 @@ import { useRef, useState } from "react";
 import type { Emotion, ThoughtRecord } from "@/lib/types";
 import { saveRecord } from "@/lib/storage";
 import { EmotionPicker, EmotionSliders } from "./EmotionEditor";
+import { Markdown } from "./Markdown";
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 type StepMeta = {
   title: string;
@@ -26,8 +27,8 @@ const STEPS: StepMeta[] = [
     guide: "いま感じている感情を選んで、強さを 0〜100% で記録します。",
   },
   {
-    title: "違う可能性",
-    guide: "浮かんだ想いに対する「反対の証拠」や「別の見方」を探してみます。弁護士になったつもりで。",
+    title: "証拠を天秤にかける",
+    guide: "その想いを「支持する証拠」と「反対の証拠」を両方書き出して、見比べてみます。まず本音を出し、次に弁護士になったつもりで反論を探します。",
   },
   {
     title: "コントロールできる？",
@@ -36,6 +37,10 @@ const STEPS: StepMeta[] = [
   {
     title: "親友の視点",
     guide: "もし親友がまったく同じ相談をしてきたら、あなたは何と言ってあげますか。",
+  },
+  {
+    title: "新しい考え",
+    guide: "ここまでを踏まえて、いまのあなたが納得できる「バランスの取れた考え」を、自分の言葉でまとめてみます。",
   },
   {
     title: "カウンセラーの言葉",
@@ -48,15 +53,19 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
   const [event, setEvent] = useState("");
   const [automaticThought, setAutomaticThought] = useState("");
   const [emotions, setEmotions] = useState<Emotion[]>([]);
+  const [supportingEvidence, setSupportingEvidence] = useState("");
   const [counterEvidence, setCounterEvidence] = useState("");
   const [uncontrollable, setUncontrollable] = useState("");
   const [controllable, setControllable] = useState("");
   const [friendAdvice, setFriendAdvice] = useState("");
+  const [balancedThought, setBalancedThought] = useState("");
 
   const [feedback, setFeedback] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emotionsAfter, setEmotionsAfter] = useState<Emotion[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const requestedRef = useRef(false);
 
   const recordId = useRef(
@@ -70,9 +79,10 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
       case 0: return event.trim().length > 0;
       case 1: return automaticThought.trim().length > 0;
       case 2: return emotions.length > 0;
-      case 3: return counterEvidence.trim().length > 0;
+      case 3: return supportingEvidence.trim().length > 0 && counterEvidence.trim().length > 0;
       case 4: return uncontrollable.trim().length > 0 || controllable.trim().length > 0;
       case 5: return friendAdvice.trim().length > 0;
+      case 6: return balancedThought.trim().length > 0;
       default: return true;
     }
   };
@@ -89,12 +99,19 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
           event,
           automaticThought,
           emotions,
+          supportingEvidence,
           counterEvidence,
           uncontrollable,
           controllable,
           friendAdvice,
+          balancedThought,
         }),
       });
+      if (res.status === 401) {
+        // セッション切れ。ログイン画面へ戻す（ここで再試行しても必ず失敗するため）
+        window.location.href = "/login";
+        return;
+      }
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? `エラーが発生しました (${res.status})`);
@@ -120,29 +137,39 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
   const goNext = () => {
     const next = step + 1;
     setStep(next);
-    if (next === 6 && !requestedRef.current) {
+    if (next === 7 && !requestedRef.current) {
       requestedRef.current = true;
       void fetchFeedback();
     }
     window.scrollTo({ top: 0 });
   };
 
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
     const record: ThoughtRecord = {
       id: recordId.current,
       createdAt: new Date().toISOString(),
       event,
       automaticThought,
       emotions,
+      supportingEvidence,
       counterEvidence,
       uncontrollable,
       controllable,
       friendAdvice,
+      balancedThought,
       aiFeedback: feedback || undefined,
       emotionsAfter: emotionsAfter ?? undefined,
     };
-    saveRecord(record);
-    onDone();
+    try {
+      await saveRecord(record);
+      onDone();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "保存に失敗しました");
+      setSaving(false);
+    }
   };
 
   const meta = STEPS[step];
@@ -183,12 +210,23 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
 
       {step === 3 && (
         <>
+          <label className="field-label">支持する証拠</label>
+          <div className="hint-card">
+            問いかけ：その想いを裏づける具体的な事実は？ 過去に似たことは実際に起きた？
+          </div>
+          <textarea
+            rows={4}
+            autoFocus
+            value={supportingEvidence}
+            onChange={(e) => setSupportingEvidence(e.target.value)}
+            placeholder="例）前の現場で一部の人とうまくいかなかったのは事実。"
+          />
+          <label className="field-label">反対の証拠・違う可能性</label>
           <div className="hint-card">
             問いかけ：その考えを支持しない事実は？ 最悪以外のシナリオは？ 5年後のあなたはどう見る？
           </div>
           <textarea
-            rows={5}
-            autoFocus
+            rows={4}
             value={counterEvidence}
             onChange={(e) => setCounterEvidence(e.target.value)}
             placeholder="例）以前の同僚が自分の悪口を言っているとは限らない。"
@@ -227,6 +265,21 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
       )}
 
       {step === 6 && (
+        <>
+          <div className="hint-card">
+            ヒント：反対の証拠や、親友にかけた言葉を思い出しながら、いまの自分がしっくりくる言い方でまとめてみましょう。
+          </div>
+          <textarea
+            rows={6}
+            autoFocus
+            value={balancedThought}
+            onChange={(e) => setBalancedThought(e.target.value)}
+            placeholder="例）不安はあるけど、相手の評価はコントロールできない。いまの現場で自分にできることに集中すれば大丈夫。"
+          />
+        </>
+      )}
+
+      {step === 7 && (
         <div>
           {error && (
             <div className="error-card">
@@ -251,7 +304,7 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
               <div className="feedback-label">カウンセラーより</div>
               {feedback ? (
                 <div className={`feedback-body ${streaming ? "cursor-blink" : ""}`}>
-                  {feedback}
+                  <Markdown source={feedback} />
                 </div>
               ) : (
                 <div className="thinking-dots" aria-label="考え中">
@@ -277,8 +330,12 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
+      {saveError && step === 7 && (
+        <div className="error-card" style={{ marginTop: 16 }}>{saveError}</div>
+      )}
+
       <div className="wizard-nav">
-        {step > 0 && step < 6 ? (
+        {step > 0 && step < 7 ? (
           <button type="button" className="btn btn-ghost" onClick={() => setStep(step - 1)}>
             戻る
           </button>
@@ -290,23 +347,23 @@ export function RecordFlow({ onDone }: { onDone: () => void }) {
           <span />
         )}
 
-        {step < 6 ? (
+        {step < 7 ? (
           <button
             type="button"
             className="btn btn-primary"
             disabled={!canProceed()}
             onClick={goNext}
           >
-            {step === 5 ? "フィードバックを受け取る" : "次へ"}
+            {step === 6 ? "フィードバックを受け取る" : "次へ"}
           </button>
         ) : (
           <button
             type="button"
             className="btn btn-primary"
-            disabled={streaming}
+            disabled={streaming || saving}
             onClick={save}
           >
-            記録を保存する
+            {saving ? "保存中…" : "記録を保存する"}
           </button>
         )}
       </div>
